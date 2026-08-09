@@ -123,7 +123,7 @@ export default function AssistirAula() {
 
       {isAuthenticated && (
         <button
-          onClick={() => alternar.mutate({ lessonId: aulaId, done: !concluida })}
+          onClick={() => alternar.mutate({ lessonId: aulaId, concluida: !concluida })}
           className={`mt-8 flex h-14 w-full items-center justify-center gap-3 rounded-2xl text-lg font-bold transition-colors ${
             concluida
               ? "bg-[hsl(150,50%,45%)] text-white"

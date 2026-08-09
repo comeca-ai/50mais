@@ -1,6 +1,6 @@
 export const Session = {
-  cookieName: "kimi_sid",
-  maxAgeMs: 365 * 24 * 60 * 60 * 1000,
+  cookieName: "recomeca_sid",
+  maxAgeMs: 30 * 24 * 60 * 60 * 1000, // 30 dias
 } as const;
 
 export const ErrorMessages = {
@@ -9,6 +9,6 @@ export const ErrorMessages = {
 } as const;
 
 export const Paths = {
-  login: "/login",
-  oauthCallback: "/api/oauth/callback",
+  login: "/entrar",
+  cadastro: "/cadastro",
 } as const;

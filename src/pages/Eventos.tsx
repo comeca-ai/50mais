@@ -175,7 +175,7 @@ export default function Eventos() {
                 criar.mutate({
                   titulo: form.titulo,
                   descricao: form.descricao || undefined,
-                  dataHora: new Date(`${form.data}T${form.hora}:00`),
+                  dataHora: new Date(`${form.data}T${form.hora}:00`).toISOString(),
                   duracaoMin: form.duracaoMin ? Number(form.duracaoMin) : undefined,
                   link: form.link || undefined,
                   local: form.local || undefined,

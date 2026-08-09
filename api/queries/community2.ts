@@ -1,4 +1,4 @@
-import { getDb } from "./connection";
+import { requireDb } from "./connection";
 import {
   spaces,
   lessonProgress,
@@ -8,36 +8,40 @@ import {
   messages,
   users,
   profiles,
-  forumPosts,
-  forumComments,
+  posts,
+  pointsLedger,
 } from "@db/schema";
-import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Espaços
 // ---------------------------------------------------------------------------
 export async function listSpaces() {
-  const db = getDb();
-  return db
+  return requireDb()
     .select({
       id: spaces.id,
       nome: spaces.nome,
       descricao: spaces.descricao,
+      icone: spaces.icone,
       ordem: spaces.ordem,
-      acesso: spaces.acesso,
-      postCount: sql<number>`(select count(*) from ${forumPosts} where ${forumPosts.spaceId} = ${spaces.id})`,
+      tipo: spaces.tipo,
+      formato: spaces.formato,
+      postCount: sql<number>`(select count(*) from ${posts} where ${posts.spaceId} = ${spaces.id} and ${posts.deletedAt} is null)`,
     })
     .from(spaces)
+    .where(isNull(spaces.deletedAt))
     .orderBy(asc(spaces.ordem));
 }
 
 export async function createSpace(data: {
   nome: string;
   descricao?: string;
+  icone?: string;
   ordem: number;
-  acesso: "publico" | "membros";
+  tipo: "publicado" | "membros" | "convite";
+  formato?: "forum" | "curso" | "eventos" | "chat" | "links";
 }) {
-  const [row] = await getDb().insert(spaces).values(data).$returningId();
+  const [row] = await requireDb().insert(spaces).values(data).returning();
   return row;
 }
 
@@ -46,67 +50,85 @@ export async function updateSpace(
   data: Partial<{
     nome: string;
     descricao: string;
+    icone: string;
     ordem: number;
-    acesso: "publico" | "membros";
+    tipo: "publicado" | "membros" | "convite";
   }>,
 ) {
-  await getDb().update(spaces).set(data).where(eq(spaces.id, id));
+  await requireDb().update(spaces).set(data).where(eq(spaces.id, id));
 }
 
 export async function deleteSpace(id: number) {
-  const db = getDb();
+  // Exclusão lógica: publicações são mantidas sem espaço
+  const db = requireDb();
+  await db.update(posts).set({ spaceId: null }).where(eq(posts.spaceId, id));
   await db
-    .update(forumPosts)
-    .set({ spaceId: null })
-    .where(eq(forumPosts.spaceId, id));
-  await db.delete(spaces).where(eq(spaces.id, id));
+    .update(spaces)
+    .set({ deletedAt: new Date() })
+    .where(eq(spaces.id, id));
 }
 
 // ---------------------------------------------------------------------------
 // Progresso no curso
 // ---------------------------------------------------------------------------
 export async function myProgress(userId: number) {
-  return getDb()
-    .select({ lessonId: lessonProgress.lessonId })
+  return requireDb()
+    .select({
+      lessonId: lessonProgress.lessonId,
+      status: lessonProgress.status,
+    })
     .from(lessonProgress)
     .where(eq(lessonProgress.userId, userId));
 }
 
-export async function setLessonDone(
+export async function setLessonStatus(
   userId: number,
   lessonId: number,
-  done: boolean,
+  status: "nao_iniciado" | "assistindo" | "concluido",
 ) {
-  const db = getDb();
-  if (done) {
-    const existing = await db
-      .select({ id: lessonProgress.id })
-      .from(lessonProgress)
-      .where(
-        and(
-          eq(lessonProgress.userId, userId),
-          eq(lessonProgress.lessonId, lessonId),
-        ),
-      );
-    if (existing.length === 0) {
-      await db.insert(lessonProgress).values({ userId, lessonId });
+  const db = requireDb();
+  const [existente] = await db
+    .select({ id: lessonProgress.id })
+    .from(lessonProgress)
+    .where(
+      and(
+        eq(lessonProgress.userId, userId),
+        eq(lessonProgress.lessonId, lessonId),
+      ),
+    );
+  if (status === "nao_iniciado") {
+    if (existente) {
+      await db
+        .delete(lessonProgress)
+        .where(eq(lessonProgress.id, existente.id));
     }
-  } else {
+    return;
+  }
+  if (existente) {
     await db
-      .delete(lessonProgress)
-      .where(
-        and(
-          eq(lessonProgress.userId, userId),
-          eq(lessonProgress.lessonId, lessonId),
-        ),
-      );
+      .update(lessonProgress)
+      .set({ status })
+      .where(eq(lessonProgress.id, existente.id));
+  } else {
+    await db.insert(lessonProgress).values({ userId, lessonId, status });
   }
 }
 
 export async function progressSummary(userId: number) {
-  const db = getDb();
-  const total = await db.select({ id: lessons.id }).from(lessons);
-  const feitas = await myProgress(userId);
+  const db = requireDb();
+  const total = await db
+    .select({ id: lessons.id })
+    .from(lessons)
+    .where(eq(lessons.publicada, true));
+  const feitas = await db
+    .select({ id: lessonProgress.id })
+    .from(lessonProgress)
+    .where(
+      and(
+        eq(lessonProgress.userId, userId),
+        eq(lessonProgress.status, "concluido"),
+      ),
+    );
   return {
     total: total.length,
     concluidas: feitas.length,
@@ -119,7 +141,7 @@ export async function progressSummary(userId: number) {
 // Eventos
 // ---------------------------------------------------------------------------
 export async function listEvents(userId?: number) {
-  const db = getDb();
+  const db = requireDb();
   const rows = await db
     .select({
       id: events.id,
@@ -129,6 +151,8 @@ export async function listEvents(userId?: number) {
       duracaoMin: events.duracaoMin,
       link: events.link,
       local: events.local,
+      limiteVagas: events.limiteVagas,
+      gravacaoUrl: events.gravacaoUrl,
       createdAt: events.createdAt,
       totalVou: sql<number>`(select count(*) from ${eventRsvps} where ${eventRsvps.eventId} = ${events.id} and ${eventRsvps.status} = 'vou')`,
       totalTalvez: sql<number>`(select count(*) from ${eventRsvps} where ${eventRsvps.eventId} = ${events.id} and ${eventRsvps.status} = 'talvez')`,
@@ -153,14 +177,16 @@ export async function createEvent(data: {
   duracaoMin?: number;
   link?: string;
   local?: string;
+  limiteVagas?: number;
+  recorrencia?: string;
   createdBy?: number;
 }) {
-  const [row] = await getDb().insert(events).values(data).$returningId();
+  const [row] = await requireDb().insert(events).values(data).returning();
   return row;
 }
 
 export async function deleteEvent(id: number) {
-  const db = getDb();
+  const db = requireDb();
   await db.delete(eventRsvps).where(eq(eventRsvps.eventId, id));
   await db.delete(events).where(eq(events.id, id));
 }
@@ -168,34 +194,65 @@ export async function deleteEvent(id: number) {
 export async function rsvp(
   eventId: number,
   userId: number,
-  status: "vou" | "talvez" | "remover",
+  status: "vou" | "talvez" | "nao_vou" | "remover",
 ) {
-  const db = getDb();
-  if (status === "remover") {
-    await db
-      .delete(eventRsvps)
-      .where(and(eq(eventRsvps.eventId, eventId), eq(eventRsvps.userId, userId)));
-    return;
-  }
-  const existing = await db
+  const db = requireDb();
+  const [existente] = await db
     .select({ id: eventRsvps.id })
     .from(eventRsvps)
     .where(and(eq(eventRsvps.eventId, eventId), eq(eventRsvps.userId, userId)));
-  if (existing.length > 0) {
+
+  if (status === "remover") {
+    if (existente) {
+      await db.delete(eventRsvps).where(eq(eventRsvps.id, existente.id));
+    }
+    return { lotado: false };
+  }
+
+  // Respeita limite de vagas
+  const [ev] = await db
+    .select({ limiteVagas: events.limiteVagas })
+    .from(events)
+    .where(eq(events.id, eventId));
+  if (status === "vou" && ev?.limiteVagas) {
+    const [c] = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(eventRsvps)
+      .where(and(eq(eventRsvps.eventId, eventId), eq(eventRsvps.status, "vou")));
+    if (!existente && Number(c.n) >= ev.limiteVagas) {
+      return { lotado: true };
+    }
+  }
+
+  if (existente) {
     await db
       .update(eventRsvps)
       .set({ status })
-      .where(and(eq(eventRsvps.eventId, eventId), eq(eventRsvps.userId, userId)));
+      .where(eq(eventRsvps.id, existente.id));
   } else {
     await db.insert(eventRsvps).values({ eventId, userId, status });
   }
+  return { lotado: false };
 }
 
 // ---------------------------------------------------------------------------
-// Diretório de membros
+// Diretório de membros (com filtros)
 // ---------------------------------------------------------------------------
-export async function listMembers() {
-  return getDb()
+export async function listMembers(filtros?: {
+  cidade?: string;
+  objetivo?: string;
+}) {
+  const db = requireDb();
+  const condicoes = [isNull(users.deletedAt)];
+  if (filtros?.cidade) {
+    condicoes.push(sql`lower(${profiles.cidade}) like ${"%" + filtros.cidade.toLowerCase() + "%"}`);
+  }
+  if (filtros?.objetivo) {
+    condicoes.push(
+      sql`${profiles.objetivoTipo} = ${filtros.objetivo}`,
+    );
+  }
+  return db
     .select({
       id: users.id,
       name: users.name,
@@ -204,15 +261,17 @@ export async function listMembers() {
       profissaoAtual: profiles.profissaoAtual,
       areaInteresse: profiles.areaInteresse,
       faixaEtaria: profiles.faixaEtaria,
+      objetivoTipo: profiles.objetivoTipo,
       createdAt: users.createdAt,
     })
     .from(users)
     .leftJoin(profiles, eq(users.id, profiles.userId))
+    .where(and(...condicoes))
     .orderBy(desc(users.createdAt));
 }
 
 export async function getMember(id: number) {
-  const [row] = await getDb()
+  const [row] = await requireDb()
     .select({
       id: users.id,
       name: users.name,
@@ -222,89 +281,51 @@ export async function getMember(id: number) {
       profissaoAtual: profiles.profissaoAtual,
       areaInteresse: profiles.areaInteresse,
       faixaEtaria: profiles.faixaEtaria,
+      objetivoTipo: profiles.objetivoTipo,
       objetivo: profiles.objetivo,
+      bio: profiles.bio,
+      podeEnsinar: profiles.podeEnsinar,
+      estaAprendendo: profiles.estaAprendendo,
       experienciaTech: profiles.experienciaTech,
     })
     .from(users)
     .leftJoin(profiles, eq(users.id, profiles.userId))
-    .where(eq(users.id, id));
+    .where(and(eq(users.id, id), isNull(users.deletedAt)));
   return row ?? null;
 }
 
 export async function memberPosts(userId: number) {
-  return getDb()
+  return requireDb()
     .select({
-      id: forumPosts.id,
-      titulo: forumPosts.titulo,
-      createdAt: forumPosts.createdAt,
+      id: posts.id,
+      titulo: posts.titulo,
+      createdAt: posts.createdAt,
     })
-    .from(forumPosts)
-    .where(eq(forumPosts.authorId, userId))
-    .orderBy(desc(forumPosts.createdAt))
+    .from(posts)
+    .where(and(eq(posts.authorId, userId), isNull(posts.deletedAt)))
+    .orderBy(desc(posts.createdAt))
     .limit(5);
 }
 
 // ---------------------------------------------------------------------------
-// Gamificação — pontos por atividade
-// post = 10 | comentário = 5 | aula concluída = 15 | presença em evento = 3
+// Gamificação — saldo derivado do razão (append-only)
 // ---------------------------------------------------------------------------
-export async function computePoints(userId: number): Promise<number> {
-  const db = getDb();
-  const [r] = await db
-    .select({
-      posts: sql<number>`(select count(*) from ${forumPosts} where ${forumPosts.authorId} = ${userId})`,
-      comentarios: sql<number>`(select count(*) from ${forumComments} where ${forumComments.authorId} = ${userId})`,
-      aulas: sql<number>`(select count(*) from ${lessonProgress} where ${lessonProgress.userId} = ${userId})`,
-      presencas: sql<number>`(select count(*) from ${eventRsvps} where ${eventRsvps.userId} = ${userId})`,
-    })
-    .from(users)
-    .where(eq(users.id, userId));
-  if (!r) return 0;
-  return (
-    Number(r.posts) * 10 +
-    Number(r.comentarios) * 5 +
-    Number(r.aulas) * 15 +
-    Number(r.presencas) * 3
-  );
-}
-
-export function nivelDe(pontos: number) {
-  if (pontos >= 600)
-    return { nome: "Floresta", emoji: "🌳🌳", proximo: null as number | null };
-  if (pontos >= 300) return { nome: "Árvore", emoji: "🌳", proximo: 600 };
-  if (pontos >= 150) return { nome: "Arbusto", emoji: "🌿", proximo: 300 };
-  if (pontos >= 50) return { nome: "Broto", emoji: "🌱", proximo: 150 };
-  return { nome: "Semente", emoji: "🫘", proximo: 50 };
-}
-
 export async function leaderboard(limit = 20) {
-  const db = getDb();
+  const db = requireDb();
   const rows = await db
     .select({
       id: users.id,
       name: users.name,
       avatar: users.avatar,
       cidade: profiles.cidade,
-      posts: sql<number>`(select count(*) from ${forumPosts} where ${forumPosts.authorId} = ${users.id})`,
-      comentarios: sql<number>`(select count(*) from ${forumComments} where ${forumComments.authorId} = ${users.id})`,
-      aulas: sql<number>`(select count(*) from ${lessonProgress} where ${lessonProgress.userId} = ${users.id})`,
-      presencas: sql<number>`(select count(*) from ${eventRsvps} where ${eventRsvps.userId} = ${users.id})`,
+      pontos: sql<number>`coalesce((select sum(${pointsLedger.pontos}) from ${pointsLedger} where ${pointsLedger.userId} = ${users.id}), 0)`,
     })
     .from(users)
-    .leftJoin(profiles, eq(users.id, profiles.userId));
+    .leftJoin(profiles, eq(users.id, profiles.userId))
+    .where(isNull(users.deletedAt));
 
   return rows
-    .map((r) => ({
-      id: r.id,
-      name: r.name,
-      avatar: r.avatar,
-      cidade: r.cidade,
-      pontos:
-        Number(r.posts) * 10 +
-        Number(r.comentarios) * 5 +
-        Number(r.aulas) * 15 +
-        Number(r.presencas) * 3,
-    }))
+    .map((r) => ({ ...r, pontos: Number(r.pontos) }))
     .sort((a, b) => b.pontos - a.pontos)
     .slice(0, limit);
 }
@@ -313,12 +334,16 @@ export async function leaderboard(limit = 20) {
 // Mensagens diretas
 // ---------------------------------------------------------------------------
 export async function listConversations(userId: number) {
-  const db = getDb();
-  // última mensagem de cada conversa
+  const db = requireDb();
   const msgs = await db
     .select()
     .from(messages)
-    .where(or(eq(messages.deUserId, userId), eq(messages.paraUserId, userId)))
+    .where(
+      and(
+        or(eq(messages.deUserId, userId), eq(messages.paraUserId, userId)),
+        isNull(messages.deletedAt),
+      ),
+    )
     .orderBy(desc(messages.createdAt));
 
   const porParceiro = new Map<
@@ -358,19 +383,21 @@ export async function listConversations(userId: number) {
 }
 
 export async function listThread(userId: number, parceiroId: number) {
-  const db = getDb();
+  const db = requireDb();
   const thread = await db
     .select()
     .from(messages)
     .where(
-      or(
-        and(eq(messages.deUserId, userId), eq(messages.paraUserId, parceiroId)),
-        and(eq(messages.deUserId, parceiroId), eq(messages.paraUserId, userId)),
+      and(
+        or(
+          and(eq(messages.deUserId, userId), eq(messages.paraUserId, parceiroId)),
+          and(eq(messages.deUserId, parceiroId), eq(messages.paraUserId, userId)),
+        ),
+        isNull(messages.deletedAt),
       ),
     )
     .orderBy(asc(messages.createdAt));
 
-  // marca como lidas as mensagens recebidas desse parceiro
   await db
     .update(messages)
     .set({ lidaEm: new Date() })
@@ -378,7 +405,7 @@ export async function listThread(userId: number, parceiroId: number) {
       and(
         eq(messages.deUserId, parceiroId),
         eq(messages.paraUserId, userId),
-        sql`${messages.lidaEm} is null`,
+        isNull(messages.lidaEm),
       ),
     );
 
@@ -390,18 +417,23 @@ export async function sendMessage(
   paraUserId: number,
   conteudo: string,
 ) {
-  const [row] = await getDb()
+  const [row] = await requireDb()
     .insert(messages)
     .values({ deUserId, paraUserId, conteudo })
-    .$returningId();
+    .returning();
   return row;
 }
 
 export async function unreadCount(userId: number) {
-  const db = getDb();
-  const rows = await db
+  const rows = await requireDb()
     .select({ id: messages.id })
     .from(messages)
-    .where(and(eq(messages.paraUserId, userId), sql`${messages.lidaEm} is null`));
+    .where(
+      and(
+        eq(messages.paraUserId, userId),
+        isNull(messages.lidaEm),
+        isNull(messages.deletedAt),
+      ),
+    );
   return rows.length;
 }

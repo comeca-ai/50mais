@@ -37,6 +37,8 @@ import {
 function AbaAulas() {
   const utils = trpc.useUtils();
   const { data: aulas } = trpc.lessons.listAll.useQuery();
+  const { data: modulos } = trpc.lessons.modules.useQuery();
+  const { data: cursos } = trpc.lessons.courses.useQuery();
   const [form, setForm] = useState({
     modulo: "",
     titulo: "",
@@ -48,6 +50,7 @@ function AbaAulas() {
   });
   const [erro, setErro] = useState("");
 
+  const criarModulo = trpc.lessons.createModule.useMutation();
   const criar = trpc.lessons.create.useMutation({
     onSuccess: () => {
       utils.lessons.listAll.invalidate();
@@ -65,6 +68,40 @@ function AbaAulas() {
     },
     onError: (e) => setErro(e.message),
   });
+
+  /** Encontra o módulo pelo título; cria se ainda não existir. */
+  async function enviarAula() {
+    setErro("");
+    const tituloModulo = form.modulo.trim();
+    let mod = (modulos ?? []).find((m) => m.titulo === tituloModulo);
+    if (!mod) {
+      const curso = (cursos ?? [])[0];
+      if (!curso) {
+        setErro("Nenhuma trilha cadastrada ainda. Rode o conteúdo inicial.");
+        return;
+      }
+      try {
+        mod = await criarModulo.mutateAsync({
+          courseId: curso.id,
+          titulo: tituloModulo,
+          ordem: (modulos ?? []).length + 1,
+        });
+        utils.lessons.modules.invalidate();
+      } catch (e) {
+        setErro(e instanceof Error ? e.message : "Não consegui criar o módulo.");
+        return;
+      }
+    }
+    criar.mutate({
+      moduleId: mod.id,
+      titulo: form.titulo,
+      descricao: form.descricao || undefined,
+      videoUrl: form.videoUrl || undefined,
+      materialUrl: form.materialUrl || undefined,
+      duracaoMin: form.duracaoMin ? Number(form.duracaoMin) : undefined,
+      ordem: Number(form.ordem) || 1,
+    });
+  }
   const excluir = trpc.lessons.delete.useMutation({
     onSuccess: () => {
       utils.lessons.listAll.invalidate();
@@ -154,20 +191,10 @@ function AbaAulas() {
           <Button
             size="lg"
             className="h-12 w-full text-base font-bold"
-            disabled={criar.isPending || !form.modulo || !form.titulo}
-            onClick={() =>
-              criar.mutate({
-                modulo: form.modulo,
-                titulo: form.titulo,
-                descricao: form.descricao || undefined,
-                videoUrl: form.videoUrl || undefined,
-                materialUrl: form.materialUrl || undefined,
-                duracaoMin: form.duracaoMin ? Number(form.duracaoMin) : undefined,
-                ordem: Number(form.ordem) || 1,
-              })
-            }
+            disabled={criar.isPending || criarModulo.isPending || !form.modulo || !form.titulo}
+            onClick={() => void enviarAula()}
           >
-            {criar.isPending ? "Salvando…" : "Publicar aula"}
+            {criar.isPending || criarModulo.isPending ? "Salvando…" : "Publicar aula"}
           </Button>
         </CardContent>
       </Card>
@@ -382,7 +409,7 @@ function CandidatosDialog({
   jobId: number | null;
   onClose: () => void;
 }) {
-  const { data: candidatos } = trpc.jobs.interests.useQuery(
+  const { data: candidatos } = trpc.jobs.applications.useQuery(
     { jobId: jobId ?? 0 },
     { enabled: jobId !== null },
   );
@@ -491,7 +518,7 @@ function AbaEspacos() {
   const { data: espacos } = trpc.spaces.list.useQuery();
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
-  const [acesso, setAcesso] = useState<"publico" | "membros">("publico");
+  const [acesso, setAcesso] = useState<"publicado" | "membros">("publicado");
 
   const criar = trpc.spaces.create.useMutation({
     onSuccess: () => {
@@ -533,7 +560,7 @@ function AbaEspacos() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="publico" className="text-base">
+                <SelectItem value="publicado" className="text-base">
                   Todo mundo (aberto)
                 </SelectItem>
                 <SelectItem value="membros" className="text-base">
@@ -554,7 +581,7 @@ function AbaEspacos() {
                 nome,
                 descricao: descricao || undefined,
                 ordem: (espacos ?? []).length + 1,
-                acesso,
+                tipo: acesso,
               })
             }
           >
@@ -577,7 +604,7 @@ function AbaEspacos() {
                 <div className="min-w-0">
                   <p className="truncate font-bold">
                     {e.nome}
-                    {e.acesso === "membros" && " 🔒"}
+                    {e.tipo === "membros" && " 🔒"}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {Number(e.postCount)} conversas
@@ -652,6 +679,9 @@ export default function Admin() {
           <TabsTrigger value="empresas" className="h-11 px-6 text-base font-bold">
             Empresas
           </TabsTrigger>
+          <TabsTrigger value="moderacao" className="h-11 px-6 text-base font-bold">
+            Moderação
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="aulas" className="mt-8">
           <AbaAulas />
@@ -665,7 +695,122 @@ export default function Admin() {
         <TabsContent value="empresas" className="mt-8">
           <AbaEmpresas />
         </TabsContent>
+        <TabsContent value="moderacao" className="mt-8">
+          <AbaModeracao />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Aba: Moderação (denúncias)
+// ---------------------------------------------------------------------------
+function AbaModeracao() {
+  const utils = trpc.useUtils();
+  const { data: denuncias, isLoading } = trpc.moderation.list.useQuery({});
+
+  const resolver = trpc.moderation.setStatus.useMutation({
+    onSuccess: () => utils.moderation.list.invalidate(),
+  });
+
+  const abertas = (denuncias ?? []).filter((d) => d.status === "aberto");
+  const fechadas = (denuncias ?? []).filter((d) => d.status !== "aberto");
+
+  function alvoTexto(d: {
+    postId: number | null;
+    commentId: number | null;
+    messageId: number | null;
+    reportedUserId: number | null;
+  }) {
+    if (d.postId) return `Publicação #${d.postId}`;
+    if (d.commentId) return `Comentário #${d.commentId}`;
+    if (d.messageId) return `Mensagem #${d.messageId}`;
+    if (d.reportedUserId) return `Membro #${d.reportedUserId}`;
+    return "Conteúdo";
+  }
+
+  return (
+    <div className="space-y-8">
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-xl font-bold">
+            Denúncias abertas ({abertas.length})
+          </h3>
+          {isLoading && (
+            <p className="mt-4 text-muted-foreground">Carregando…</p>
+          )}
+          {!isLoading && abertas.length === 0 && (
+            <p className="mt-4 text-muted-foreground">
+              Nenhuma denúncia esperando análise. Tudo em paz! 💚
+            </p>
+          )}
+          <ul className="mt-4 space-y-3">
+            {abertas.map((d) => (
+              <li key={d.id} className="rounded-xl border p-4">
+                <p className="font-bold">{alvoTexto(d)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Denunciado por {d.reporterNome ?? "Membro"} em{" "}
+                  {new Date(d.createdAt).toLocaleString("pt-BR")}
+                </p>
+                <p className="mt-2 rounded-lg bg-secondary p-3">{d.motivo}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {d.postId && (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={`/comunidade/post/${d.postId}`}>Ver publicação</a>
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    disabled={resolver.isPending}
+                    onClick={() =>
+                      resolver.mutate({ id: d.id, status: "resolvido" })
+                    }
+                  >
+                    <Check className="mr-1.5 h-4 w-4" aria-hidden />
+                    Marcar como resolvida
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={resolver.isPending}
+                    onClick={() =>
+                      resolver.mutate({ id: d.id, status: "descartado" })
+                    }
+                  >
+                    Descartar
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      {fechadas.length > 0 && (
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-xl font-bold">
+              Histórico ({fechadas.length})
+            </h3>
+            <ul className="mt-4 space-y-2">
+              {fechadas.map((d) => (
+                <li
+                  key={d.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"
+                >
+                  <span>
+                    {alvoTexto(d)} — {d.motivo.slice(0, 80)}
+                  </span>
+                  <span className="font-bold">
+                    {d.status === "resolvido" ? "✅ Resolvida" : "🗑️ Descartada"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

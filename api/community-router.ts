@@ -3,6 +3,9 @@ import { createRouter, publicQuery, authedQuery, adminQuery } from "./middleware
 import {
   listLessons,
   listAllLessons,
+  listModules,
+  listCourses,
+  createModule,
   createLesson,
   updateLesson,
   deleteLesson,
@@ -14,15 +17,19 @@ import {
   createPost,
   createComment,
   deletePost,
+  setPostFlags,
+  toggleReaction,
+  listReactions,
 } from "./queries/forum";
 import {
   listActiveJobs,
   createJob,
   setJobActive,
   deleteJob,
-  expressInterest,
-  listInterestsForJob,
-  listMyInterests,
+  applyToJob,
+  listApplicationsForJob,
+  setApplicationStatus,
+  listMyApplications,
   registerCompany,
   listCompanies,
   setCompanyStatus,
@@ -32,7 +39,11 @@ import {
   upsertProfile,
   countProfiles,
 } from "./queries/profiles";
+import { registrarPontos } from "./lib/pontos";
+import { notificar } from "./queries/notifications";
 import { assertSpaceAccess } from "./community2-router";
+import { rateLimit, ipDe } from "./lib/rate-limit";
+import { TRPCError } from "@trpc/server";
 
 const faixaEtariaEnum = z.enum(["45-49", "50-54", "55-59", "60-64", "65+"]);
 const experienciaEnum = z.enum([
@@ -41,26 +52,39 @@ const experienciaEnum = z.enum([
   "intermediario",
   "avancado",
 ]);
-const categoriaEnum = z.enum([
-  "duvidas",
-  "experiencias",
-  "oportunidades",
-  "geral",
+const objetivoEnum = z.enum([
+  "recolocacao",
+  "freelance",
+  "empreender",
+  "curiosidade",
 ]);
 
 export const lessonsRouter = createRouter({
   list: publicQuery.query(() => listLessons()),
   listAll: adminQuery.query(() => listAllLessons()),
+  modules: publicQuery.query(() => listModules()),
+  courses: publicQuery.query(() => listCourses()),
+  createModule: adminQuery
+    .input(
+      z.object({
+        courseId: z.number(),
+        titulo: z.string().min(1),
+        ordem: z.number().int(),
+      }),
+    )
+    .mutation(({ input }) => createModule(input)),
   create: adminQuery
     .input(
       z.object({
-        modulo: z.string().min(1),
+        moduleId: z.number(),
         titulo: z.string().min(1),
         descricao: z.string().optional(),
         videoUrl: z.string().optional(),
         materialUrl: z.string().optional(),
+        transcricao: z.string().optional(),
         duracaoMin: z.number().int().positive().optional(),
         ordem: z.number().int(),
+        planoMinimo: z.enum(["gratuito", "membro"]).optional(),
       }),
     )
     .mutation(({ input }) =>
@@ -68,19 +92,21 @@ export const lessonsRouter = createRouter({
         ...input,
         videoUrl: input.videoUrl || undefined,
         materialUrl: input.materialUrl || undefined,
+        transcricao: input.transcricao || undefined,
       }),
     ),
   update: adminQuery
     .input(
       z.object({
         id: z.number(),
-        modulo: z.string().min(1).optional(),
         titulo: z.string().min(1).optional(),
         descricao: z.string().optional(),
         videoUrl: z.string().optional(),
         materialUrl: z.string().optional(),
+        transcricao: z.string().optional(),
         duracaoMin: z.number().int().positive().optional(),
         ordem: z.number().int().optional(),
+        planoMinimo: z.enum(["gratuito", "membro"]).optional(),
         publicada: z.boolean().optional(),
       }),
     )
@@ -95,12 +121,19 @@ export const lessonsRouter = createRouter({
 
 export const forumRouter = createRouter({
   list: publicQuery
-    .input(z.object({ spaceId: z.number().optional() }).optional())
+    .input(
+      z
+        .object({
+          spaceId: z.number().optional(),
+          ordem: z.enum(["recentes", "comentados"]).optional(),
+        })
+        .optional(),
+    )
     .query(async ({ ctx, input }) => {
       if (input?.spaceId) {
         await assertSpaceAccess(input.spaceId, !!ctx.user);
       }
-      return listPosts(input?.spaceId);
+      return listPosts(input?.spaceId, input?.ordem ?? "recentes");
     }),
   get: publicQuery
     .input(z.object({ id: z.number() }))
@@ -108,30 +141,80 @@ export const forumRouter = createRouter({
   comments: publicQuery
     .input(z.object({ postId: z.number() }))
     .query(({ input }) => listComments(input.postId)),
+  reactions: publicQuery
+    .input(z.object({ postId: z.number() }))
+    .query(({ ctx, input }) => listReactions(input.postId, ctx.user?.id)),
   create: authedQuery
     .input(
       z.object({
         spaceId: z.number().optional(),
-        categoria: categoriaEnum,
         titulo: z.string().min(3, "O título precisa de pelo menos 3 letras"),
         conteudo: z
           .string()
           .min(10, "Conte um pouco mais (mínimo de 10 letras)"),
       }),
     )
-    .mutation(({ ctx, input }) =>
-      createPost({ ...input, authorId: ctx.user.id }),
-    ),
+    .mutation(async ({ ctx, input }) => {
+      if (!rateLimit({ chave: `post:${ipDe(ctx.req)}`, limite: 12, janelaMs: 10 * 60 * 1000 })) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "Calma! Você publicou várias vezes seguidas. Espere um pouquinho.",
+        });
+      }
+      const post = await createPost({ ...input, authorId: ctx.user.id });
+      await registrarPontos(ctx.user.id, "post", "post", post.id);
+      return post;
+    }),
   comment: authedQuery
     .input(
       z.object({
         postId: z.number(),
+        parentId: z.number().optional(),
         conteudo: z.string().min(1, "Escreva algo para comentar"),
       }),
     )
+    .mutation(async ({ ctx, input }) => {
+      const comentario = await createComment({
+        ...input,
+        authorId: ctx.user.id,
+      });
+      await registrarPontos(ctx.user.id, "comentario", "comment", comentario.id);
+      // avisa o autor da publicação (se não for ele mesmo)
+      const post = await getPost(input.postId);
+      if (post && post.authorId !== ctx.user.id) {
+        await notificar(
+          post.authorId,
+          "resposta",
+          `${ctx.user.name ?? "Alguém"} comentou na sua publicação`,
+          post.titulo,
+          `/comunidade/post/${post.id}`,
+        );
+      }
+      return comentario;
+    }),
+  react: authedQuery
+    .input(
+      z.object({
+        postId: z.number().optional(),
+        commentId: z.number().optional(),
+        tipo: z.enum(["curtir", "aplaudir", "coracao", "ideia"]),
+      }),
+    )
     .mutation(({ ctx, input }) =>
-      createComment({ ...input, authorId: ctx.user.id }),
+      toggleReaction({ ...input, userId: ctx.user.id }),
     ),
+  setFlags: adminQuery
+    .input(
+      z.object({
+        id: z.number(),
+        fixado: z.boolean().optional(),
+        resolvido: z.boolean().optional(),
+      }),
+    )
+    .mutation(({ input }) => {
+      const { id, ...data } = input;
+      return setPostFlags(id, data);
+    }),
   delete: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(({ input }) => deletePost(input.id)),
@@ -147,6 +230,9 @@ export const jobsRouter = createRouter({
         descricao: z.string().min(10),
         local: z.string().optional(),
         modelo: z.enum(["presencial", "hibrido", "remoto"]),
+        faixaSalarial: z.string().optional(),
+        requisitos: z.string().optional(),
+        etariaFriendly: z.boolean().optional(),
         contato: z.string().optional(),
       }),
     )
@@ -159,15 +245,29 @@ export const jobsRouter = createRouter({
   delete: adminQuery
     .input(z.object({ id: z.number() }))
     .mutation(({ input }) => deleteJob(input.id)),
-  interest: authedQuery
-    .input(z.object({ jobId: z.number(), mensagem: z.string().optional() }))
-    .mutation(({ ctx, input }) =>
-      expressInterest({ ...input, userId: ctx.user.id }),
-    ),
-  myInterests: authedQuery.query(({ ctx }) => listMyInterests(ctx.user.id)),
-  interests: adminQuery
+  apply: authedQuery
+    .input(
+      z.object({
+        jobId: z.number(),
+        mensagem: z.string().optional(),
+        curriculoUrl: z.string().optional(),
+      }),
+    )
+    .mutation(({ ctx, input }) => applyToJob({ ...input, userId: ctx.user.id })),
+  myApplications: authedQuery.query(({ ctx }) =>
+    listMyApplications(ctx.user.id),
+  ),
+  applications: adminQuery
     .input(z.object({ jobId: z.number() }))
-    .query(({ input }) => listInterestsForJob(input.jobId)),
+    .query(({ input }) => listApplicationsForJob(input.jobId)),
+  setApplicationStatus: adminQuery
+    .input(
+      z.object({
+        id: z.number(),
+        status: z.enum(["enviada", "vista", "conversa", "encerrada"]),
+      }),
+    )
+    .mutation(({ input }) => setApplicationStatus(input.id, input.status)),
 });
 
 export const companiesRouter = createRouter({
@@ -195,13 +295,19 @@ export const profileRouter = createRouter({
   save: authedQuery
     .input(
       z.object({
-        faixaEtaria: faixaEtariaEnum,
+        faixaEtaria: faixaEtariaEnum.optional(),
         cidade: z.string().optional(),
         profissaoAtual: z.string().optional(),
         areaInteresse: z.string().optional(),
+        objetivoTipo: objetivoEnum.optional(),
         objetivo: z.string().optional(),
-        experienciaTech: experienciaEnum,
-        disponivelParaVagas: z.boolean(),
+        experienciaTech: experienciaEnum.optional(),
+        disponivelParaVagas: z.boolean().optional(),
+        bio: z.string().optional(),
+        podeEnsinar: z.string().optional(),
+        estaAprendendo: z.string().optional(),
+        links: z.string().optional(),
+        concluido: z.boolean().optional(),
       }),
     )
     .mutation(({ ctx, input }) => upsertProfile(ctx.user.id, input)),

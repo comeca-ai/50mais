@@ -19,6 +19,7 @@ import {
   Lock,
   MessageCircle,
   PenLine,
+  Search,
   User,
 } from "lucide-react";
 
@@ -65,6 +66,28 @@ export default function Comunidade() {
     <div className="container-page py-10">
       <ComunidadeNav />
 
+      <div className="mt-4">
+        <form
+          action="/buscar"
+          className="flex max-w-xl gap-3"
+          onSubmit={(e) => {
+            const alvo = e.currentTarget.elements.namedItem("q") as HTMLInputElement;
+            if (!alvo.value || alvo.value.trim().length < 2) e.preventDefault();
+          }}
+        >
+          <Input
+            name="q"
+            className="h-12 text-lg"
+            placeholder="Buscar na comunidade…"
+            aria-label="Buscar na comunidade"
+          />
+          <Button type="submit" variant="outline" size="lg" className="h-12 gap-2">
+            <Search className="h-5 w-5" aria-hidden />
+            Buscar
+          </Button>
+        </form>
+      </div>
+
       <div className="grid items-start gap-8 lg:grid-cols-[280px_1fr]">
         {/* Lista de espaços — estilo Circle */}
         <aside aria-label="Espaços da comunidade">
@@ -90,7 +113,7 @@ export default function Comunidade() {
                       }`}
                     >
                       <span className="flex min-w-0 items-center gap-2">
-                        {e.acesso === "membros" ? (
+                        {e.tipo === "membros" ? (
                           <Lock className="h-4 w-4 shrink-0" aria-label="Espaço para membros" />
                         ) : (
                           <Hash className="h-4 w-4 shrink-0" aria-hidden />
@@ -275,7 +298,6 @@ export default function Comunidade() {
                 setErro("");
                 criar.mutate({
                   spaceId: espacoDestino?.id,
-                  categoria: "geral",
                   titulo,
                   conteudo,
                 });

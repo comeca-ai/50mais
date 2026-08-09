@@ -8,6 +8,13 @@ import {
   profileRouter,
 } from "./community-router";
 import {
+  learnRouter,
+  notificationsRouter,
+  searchRouter,
+  moderationRouter,
+  accountRouter,
+} from "./community3-router";
+import {
   spacesRouter,
   progressRouter,
   eventsRouter,
@@ -30,6 +37,11 @@ export const appRouter = createRouter({
   members: membersRouter,
   gamification: gamificationRouter,
   messages: messagesRouter,
+  learn: learnRouter,
+  notifications: notificationsRouter,
+  search: searchRouter,
+  moderation: moderationRouter,
+  account: accountRouter,
 });
 
 export type AppRouter = typeof appRouter;

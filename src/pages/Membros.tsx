@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { MapPin, Search, User } from "lucide-react";
 
 export default function Membros() {
-  const { data: membros, isLoading } = trpc.members.directory.useQuery();
+  const { data: membros, isLoading } = trpc.members.list.useQuery();
   const [busca, setBusca] = useState("");
 
   const filtrados = (membros ?? []).filter((m) => {

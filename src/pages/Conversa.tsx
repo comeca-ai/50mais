@@ -28,7 +28,7 @@ export default function Conversa() {
     { enabled: Number.isFinite(parceiroId) },
   );
   const { data: mensagens } = trpc.messages.thread.useQuery(
-    { parceiroId },
+    { userId: parceiroId },
     {
       enabled: !!user && Number.isFinite(parceiroId),
       refetchInterval: 8000,
@@ -40,7 +40,7 @@ export default function Conversa() {
 
   const enviar = trpc.messages.send.useMutation({
     onSuccess: () => {
-      utils.messages.thread.invalidate({ parceiroId });
+      utils.messages.thread.invalidate({ userId: parceiroId });
       utils.messages.conversations.invalidate();
       setTexto("");
     },
@@ -118,7 +118,7 @@ export default function Conversa() {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               if (texto.trim()) {
-                enviar.mutate({ paraUserId: parceiroId, conteudo: texto.trim() });
+                enviar.mutate({ paraUserId: parceiroId, texto: texto.trim() });
               }
             }
           }}
@@ -129,7 +129,7 @@ export default function Conversa() {
           className="h-14 px-6 text-base font-bold"
           disabled={enviar.isPending || texto.trim().length === 0}
           onClick={() =>
-            enviar.mutate({ paraUserId: parceiroId, conteudo: texto.trim() })
+            enviar.mutate({ paraUserId: parceiroId, texto: texto.trim() })
           }
         >
           <Send className="h-5 w-5" />

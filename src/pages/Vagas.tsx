@@ -32,7 +32,7 @@ export default function Vagas() {
   const utils = trpc.useUtils();
 
   const { data: jobs, isLoading } = trpc.jobs.list.useQuery();
-  const { data: myInterests } = trpc.jobs.myInterests.useQuery(undefined, {
+  const { data: myInterests } = trpc.jobs.myApplications.useQuery(undefined, {
     enabled: isAuthenticated,
     retry: false,
   });
@@ -44,9 +44,9 @@ export default function Vagas() {
   const jaCandidatou = (jobId: number) =>
     (myInterests ?? []).some((i) => i.jobId === jobId);
 
-  const candidatar = trpc.jobs.interest.useMutation({
+  const candidatar = trpc.jobs.apply.useMutation({
     onSuccess: (_r, vars) => {
-      utils.jobs.myInterests.invalidate();
+      utils.jobs.myApplications.invalidate();
       setVagaAberta(null);
       setMensagem("");
       setConfirmada(vars.jobId);

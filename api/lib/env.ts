@@ -1,19 +1,43 @@
 import "dotenv/config";
 
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value && process.env.NODE_ENV === "production") {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value ?? "";
+/**
+ * Leitura de ambiente TOLERANTE A FALHAS.
+ * Nenhuma variável ausente derruba o servidor: cada recurso degrada
+ * individualmente (ver checks dbEnabled/emailEnabled/uploadEnabled).
+ */
+function opt(name: string, fallback = ""): string {
+  return process.env[name] ?? fallback;
 }
 
 export const env = {
-  appId: required("APP_ID"),
-  appSecret: required("APP_SECRET"),
   isProduction: process.env.NODE_ENV === "production",
-  databaseUrl: required("DATABASE_URL"),
-  kimiAuthUrl: required("KIMI_AUTH_URL"),
-  kimiOpenUrl: required("KIMI_OPEN_URL"),
-  ownerUnionId: process.env.OWNER_UNION_ID ?? "",
+  port: parseInt(process.env.PORT || "3000", 10),
+  appUrl: opt("APP_URL", `http://localhost:${process.env.PORT || 3000}`),
+  appSecret: opt("APP_SECRET"),
+  databaseUrl: opt("DATABASE_URL"),
+  ownerEmail: opt("OWNER_EMAIL").toLowerCase(),
+  resendApiKey: opt("RESEND_API_KEY"),
+  resendFrom: opt("RESEND_FROM", "Recomeça <ola@recomeca.ia.br>"),
+  s3Endpoint: opt("S3_ENDPOINT"),
+  s3Bucket: opt("S3_BUCKET"),
+  s3AccessKeyId: opt("S3_ACCESS_KEY_ID"),
+  s3SecretAccessKey: opt("S3_SECRET_ACCESS_KEY"),
+
+  get dbEnabled() {
+    return this.databaseUrl.length > 0;
+  },
+  get authEnabled() {
+    return this.appSecret.length > 0;
+  },
+  get emailEnabled() {
+    return this.resendApiKey.length > 0;
+  },
+  get uploadEnabled() {
+    return (
+      this.s3Endpoint.length > 0 &&
+      this.s3Bucket.length > 0 &&
+      this.s3AccessKeyId.length > 0 &&
+      this.s3SecretAccessKey.length > 0
+    );
+  },
 };

@@ -1,10 +1,12 @@
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
 import { useAuth } from "@/hooks/useAuth";
+import AvaliacaoModulo from "@/components/AvaliacaoModulo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
+  Award,
   CheckCircle2,
   Circle,
   Clock,
@@ -61,6 +63,14 @@ export default function Aulas() {
               {resumo.concluidas} de {resumo.total} aulas concluídas
               {resumo.percentual === 100 && " — parabéns, curso completo! 🎉"}
             </p>
+            {resumo.percentual === 100 && (
+              <Button size="lg" className="mt-4 gap-2" asChild>
+                <Link to="/certificado">
+                  <Award className="h-5 w-5" aria-hidden />
+                  Pegar meu certificado
+                </Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -104,11 +114,14 @@ export default function Aulas() {
                 </h2>
               </div>
               {isAuthenticated && aulasModulo.length > 0 && (
-                <div className="flex w-full max-w-xs items-center gap-3 sm:w-auto">
-                  <Progress value={pctModulo} className="h-3 w-32" />
-                  <span className="text-sm font-bold text-muted-foreground">
-                    {feitasModulo}/{aulasModulo.length}
-                  </span>
+                <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+                  <div className="flex items-center gap-3">
+                    <Progress value={pctModulo} className="h-3 w-32" />
+                    <span className="text-sm font-bold text-muted-foreground">
+                      {feitasModulo}/{aulasModulo.length}
+                    </span>
+                  </div>
+                  <AvaliacaoModulo moduleId={aulasModulo[0].moduloId} />
                 </div>
               )}
             </div>
@@ -162,7 +175,7 @@ export default function Aulas() {
                             onClick={() =>
                               alternar.mutate({
                                 lessonId: aula.id,
-                                done: !concluida,
+                                concluida: !concluida,
                               })
                             }
                             className={`flex items-center gap-2 rounded-full px-4 py-2 text-base font-bold transition-colors ${

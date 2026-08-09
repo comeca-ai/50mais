@@ -1,9 +1,9 @@
-import { getDb } from "./connection";
-import { jobs, jobInterests, companies, users, profiles } from "@db/schema";
+import { requireDb } from "./connection";
+import { jobs, applications, companies, users, profiles } from "@db/schema";
 import { and, desc, eq } from "drizzle-orm";
 
 export async function listActiveJobs() {
-  return getDb()
+  return requireDb()
     .select()
     .from(jobs)
     .where(eq(jobs.ativa, true))
@@ -16,67 +16,92 @@ export async function createJob(data: {
   descricao: string;
   local?: string;
   modelo: "presencial" | "hibrido" | "remoto";
+  faixaSalarial?: string;
+  requisitos?: string;
+  etariaFriendly?: boolean;
   contato?: string;
   createdBy?: number;
 }) {
-  const [row] = await getDb().insert(jobs).values(data).$returningId();
+  const [row] = await requireDb().insert(jobs).values(data).returning();
   return row;
 }
 
 export async function setJobActive(id: number, ativa: boolean) {
-  await getDb().update(jobs).set({ ativa }).where(eq(jobs.id, id));
+  await requireDb().update(jobs).set({ ativa }).where(eq(jobs.id, id));
 }
 
 export async function deleteJob(id: number) {
-  const db = getDb();
-  await db.delete(jobInterests).where(eq(jobInterests.jobId, id));
+  const db = requireDb();
+  await db.delete(applications).where(eq(applications.jobId, id));
   await db.delete(jobs).where(eq(jobs.id, id));
 }
 
-export async function expressInterest(data: {
+export async function applyToJob(data: {
   jobId: number;
   userId: number;
   mensagem?: string;
+  curriculoUrl?: string;
 }) {
-  const db = getDb();
+  const db = requireDb();
   const existing = await db
     .select()
-    .from(jobInterests)
+    .from(applications)
     .where(
       and(
-        eq(jobInterests.jobId, data.jobId),
-        eq(jobInterests.userId, data.userId),
+        eq(applications.jobId, data.jobId),
+        eq(applications.userId, data.userId),
       ),
     );
   if (existing.length > 0) return { already: true };
-  await db.insert(jobInterests).values(data);
+  await db.insert(applications).values(data);
   return { already: false };
 }
 
-export async function listInterestsForJob(jobId: number) {
-  return getDb()
+export async function listApplicationsForJob(jobId: number) {
+  return requireDb()
     .select({
-      id: jobInterests.id,
-      mensagem: jobInterests.mensagem,
-      createdAt: jobInterests.createdAt,
+      id: applications.id,
+      mensagem: applications.mensagem,
+      curriculoUrl: applications.curriculoUrl,
+      status: applications.status,
+      createdAt: applications.createdAt,
       userName: users.name,
       userEmail: users.email,
       cidade: profiles.cidade,
       profissaoAtual: profiles.profissaoAtual,
       faixaEtaria: profiles.faixaEtaria,
     })
-    .from(jobInterests)
-    .leftJoin(users, eq(jobInterests.userId, users.id))
-    .leftJoin(profiles, eq(jobInterests.userId, profiles.userId))
-    .where(eq(jobInterests.jobId, jobId))
-    .orderBy(desc(jobInterests.createdAt));
+    .from(applications)
+    .leftJoin(users, eq(applications.userId, users.id))
+    .leftJoin(profiles, eq(applications.userId, profiles.userId))
+    .where(eq(applications.jobId, jobId))
+    .orderBy(desc(applications.createdAt));
 }
 
-export async function listMyInterests(userId: number) {
-  return getDb()
-    .select({ jobId: jobInterests.jobId })
-    .from(jobInterests)
-    .where(eq(jobInterests.userId, userId));
+export async function setApplicationStatus(
+  id: number,
+  status: "enviada" | "vista" | "conversa" | "encerrada",
+) {
+  await requireDb()
+    .update(applications)
+    .set({ status })
+    .where(eq(applications.id, id));
+}
+
+export async function listMyApplications(userId: number) {
+  return requireDb()
+    .select({
+      id: applications.id,
+      jobId: applications.jobId,
+      status: applications.status,
+      createdAt: applications.createdAt,
+      titulo: jobs.titulo,
+      empresa: jobs.empresa,
+    })
+    .from(applications)
+    .innerJoin(jobs, eq(applications.jobId, jobs.id))
+    .where(eq(applications.userId, userId))
+    .orderBy(desc(applications.createdAt));
 }
 
 // ---------------------------------------------------------------------------
@@ -89,17 +114,23 @@ export async function registerCompany(data: {
   segmento?: string;
   descricao?: string;
 }) {
-  const [row] = await getDb().insert(companies).values(data).$returningId();
+  const [row] = await requireDb().insert(companies).values(data).returning();
   return row;
 }
 
 export async function listCompanies() {
-  return getDb().select().from(companies).orderBy(desc(companies.createdAt));
+  return requireDb()
+    .select()
+    .from(companies)
+    .orderBy(desc(companies.createdAt));
 }
 
 export async function setCompanyStatus(
   id: number,
   status: "pendente" | "aprovada",
 ) {
-  await getDb().update(companies).set({ status }).where(eq(companies.id, id));
+  await requireDb()
+    .update(companies)
+    .set({ status })
+    .where(eq(companies.id, id));
 }

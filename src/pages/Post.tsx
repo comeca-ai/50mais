@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Send, Trash2, User } from "lucide-react";
+import BotaoDenunciar from "@/components/BotaoDenunciar";
 
 function dataLonga(d: Date | string) {
   return new Date(d).toLocaleDateString("pt-BR", {
@@ -95,17 +96,20 @@ export default function Post() {
           <p className="mt-6 whitespace-pre-wrap text-lg leading-relaxed">
             {post.conteudo}
           </p>
-          {user?.role === "admin" && (
-            <Button
-              variant="destructive"
-              size="lg"
-              className="mt-6 text-base"
-              onClick={() => excluir.mutate({ id: postId })}
-              disabled={excluir.isPending}
-            >
-              <Trash2 className="mr-2 h-5 w-5" aria-hidden /> Remover conversa
-            </Button>
-          )}
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            {user?.role === "admin" && (
+              <Button
+                variant="destructive"
+                size="lg"
+                className="text-base"
+                onClick={() => excluir.mutate({ id: postId })}
+                disabled={excluir.isPending}
+              >
+                <Trash2 className="mr-2 h-5 w-5" aria-hidden /> Remover conversa
+              </Button>
+            )}
+            <BotaoDenunciar alvo={{ postId: post.id, reportedUserId: post.authorId }} />
+          </div>
         </CardContent>
       </Card>
 
@@ -132,6 +136,11 @@ export default function Post() {
                 <p className="mt-4 whitespace-pre-wrap leading-relaxed">
                   {c.conteudo}
                 </p>
+                <div className="mt-3">
+                  <BotaoDenunciar
+                    alvo={{ commentId: c.id, reportedUserId: c.authorId }}
+                  />
+                </div>
               </CardContent>
             </Card>
           </li>

@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, MessageSquareText, Sprout, User, LogOut, ShieldCheck } from "lucide-react";
+import { Menu, MessageSquareText, Sprout, User, LogOut, ShieldCheck, Bell } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/providers/trpc";
 
@@ -26,6 +26,27 @@ function BotaoMensagens() {
       <MessageSquareText className="h-6 w-6" />
       {(naoLidas ?? 0) > 0 && (
         <span className="absolute -right-1.5 -top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-[hsl(33,92%,46%)] px-1.5 text-xs font-bold text-white">
+          {naoLidas}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function BotaoNotificacoes() {
+  const { data: naoLidas } = trpc.notifications.unread.useQuery(undefined, {
+    refetchInterval: 20000,
+    retry: false,
+  });
+  return (
+    <Link
+      to="/notificacoes"
+      className="relative flex h-12 w-12 items-center justify-center rounded-lg border hover:bg-secondary"
+      aria-label={`Avisos${naoLidas ? `, ${naoLidas} não lidos` : ""}`}
+    >
+      <Bell className="h-6 w-6" />
+      {(naoLidas ?? 0) > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-bold text-white">
           {naoLidas}
         </span>
       )}
@@ -82,6 +103,7 @@ export default function Layout() {
           </nav>
 
           <div className="hidden items-center gap-3 lg:flex">
+            {isAuthenticated && <BotaoNotificacoes />}
             {isAuthenticated && <BotaoMensagens />}
             {isAuthenticated ? (
               <DropdownMenu>
@@ -116,7 +138,7 @@ export default function Layout() {
               <Button
                 size="lg"
                 className="text-base font-bold"
-                onClick={() => navigate("/login")}
+                onClick={() => navigate("/entrar")}
               >
                 Entrar
               </Button>
@@ -150,6 +172,9 @@ export default function Layout() {
               ))}
               {isAuthenticated ? (
                 <>
+                  <NavLink to="/notificacoes" className={navClass} onClick={() => setOpen(false)}>
+                    Avisos
+                  </NavLink>
                   <NavLink to="/mensagens" className={navClass} onClick={() => setOpen(false)}>
                     Mensagens
                   </NavLink>
@@ -167,7 +192,7 @@ export default function Layout() {
                   </button>
                 </>
               ) : (
-                <NavLink to="/login" className={navClass} onClick={() => setOpen(false)}>
+                <NavLink to="/entrar" className={navClass} onClick={() => setOpen(false)}>
                   Entrar
                 </NavLink>
               )}
@@ -200,6 +225,7 @@ export default function Layout() {
               <li><Link className="underline-offset-4 hover:underline" to="/aulas">Aulas do curso</Link></li>
               <li><Link className="underline-offset-4 hover:underline" to="/comunidade">Fórum de discussão</Link></li>
               <li><Link className="underline-offset-4 hover:underline" to="/vagas">Vagas de emprego</Link></li>
+              <li><Link className="underline-offset-4 hover:underline" to="/termos">Termos de uso e privacidade</Link></li>
             </ul>
           </nav>
           <div>

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { CheckCircle2, UserRound } from "lucide-react";
+import Privacidade from "@/components/Privacidade";
 
 type Faixa = "45-49" | "50-54" | "55-59" | "60-64" | "65+";
 type Exp = "iniciante" | "basico" | "intermediario" | "avancado";
@@ -56,12 +57,12 @@ export default function Perfil() {
 
   useEffect(() => {
     if (perfil) {
-      setFaixaEtaria(perfil.faixaEtaria);
+      setFaixaEtaria(perfil.faixaEtaria ?? "50-54");
       setCidade(perfil.cidade ?? "");
       setProfissao(perfil.profissaoAtual ?? "");
       setArea(perfil.areaInteresse ?? "");
       setObjetivo(perfil.objetivo ?? "");
-      setExperiencia(perfil.experienciaTech);
+      setExperiencia(perfil.experienciaTech ?? "iniciante");
       setDisponivel(perfil.disponivelParaVagas);
     }
   }, [perfil]);
@@ -245,6 +246,8 @@ export default function Perfil() {
           </Button>
         </CardContent>
       </Card>
+
+      <Privacidade />
     </div>
   );
 }
