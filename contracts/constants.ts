@@ -4,8 +4,8 @@ export const Session = {
 } as const;
 
 export const ErrorMessages = {
-  unauthenticated: "Authentication required",
-  insufficientRole: "Insufficient permissions",
+  unauthenticated: "É preciso entrar na sua conta para continuar",
+  insufficientRole: "Você não tem permissão para fazer isso",
 } as const;
 
 export const Paths = {

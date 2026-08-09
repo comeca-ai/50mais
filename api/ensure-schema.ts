@@ -121,15 +121,15 @@ const SEED_LESSONS: Array<{
     ordem: 3,
   },
   {
-    modulo: "Módulo 2 — Conversando com a IA (prompts)",
+    modulo: "Módulo 2 — Conversando com a IA",
     titulo: "Como conversar com a IA e ser entendido",
     descricao:
-      "A arte de fazer bons pedidos à IA: o que são prompts e por que a sua experiência profissional é uma vantagem enorme aqui.",
+      "A arte de fazer bons pedidos à IA (o chamado 'prompt') e por que a sua experiência profissional é uma vantagem enorme aqui.",
     ordem: 4,
   },
   {
-    modulo: "Módulo 2 — Conversando com a IA (prompts)",
-    titulo: "Prompts para o trabalho: e-mails, relatórios e apresentações",
+    modulo: "Módulo 2 — Conversando com a IA",
+    titulo: "Pedidos prontos para o trabalho: e-mails, relatórios e apresentações",
     descricao:
       "Exemplos práticos e prontos para copiar: como a IA acelera as tarefas do dia a dia no escritório.",
     ordem: 5,
