@@ -32,6 +32,7 @@ import {
   upsertProfile,
   countProfiles,
 } from "./queries/profiles";
+import { assertSpaceAccess } from "./community2-router";
 
 const faixaEtariaEnum = z.enum(["45-49", "50-54", "55-59", "60-64", "65+"]);
 const experienciaEnum = z.enum([
@@ -93,7 +94,14 @@ export const lessonsRouter = createRouter({
 });
 
 export const forumRouter = createRouter({
-  list: publicQuery.query(() => listPosts()),
+  list: publicQuery
+    .input(z.object({ spaceId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      if (input?.spaceId) {
+        await assertSpaceAccess(input.spaceId, !!ctx.user);
+      }
+      return listPosts(input?.spaceId);
+    }),
   get: publicQuery
     .input(z.object({ id: z.number() }))
     .query(({ input }) => getPost(input.id)),
@@ -103,6 +111,7 @@ export const forumRouter = createRouter({
   create: authedQuery
     .input(
       z.object({
+        spaceId: z.number().optional(),
         categoria: categoriaEnum,
         titulo: z.string().min(3, "O título precisa de pelo menos 3 letras"),
         conteudo: z

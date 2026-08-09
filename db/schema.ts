@@ -87,11 +87,31 @@ export type Lesson = typeof lessons.$inferSelect;
 export type InsertLesson = typeof lessons.$inferInsert;
 
 // ---------------------------------------------------------------------------
+// Espaços da comunidade (estilo Circle)
+// acesso: "publico" = qualquer visitante lê | "membros" = só logados (base do
+// futuro paywall)
+// ---------------------------------------------------------------------------
+export const spaces = mysqlTable("spaces", {
+  id: serial("id").primaryKey(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  ordem: int("ordem").notNull(),
+  acesso: mysqlEnum("acesso", ["publico", "membros"])
+    .default("publico")
+    .notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Space = typeof spaces.$inferSelect;
+export type InsertSpace = typeof spaces.$inferInsert;
+
+// ---------------------------------------------------------------------------
 // Fórum da comunidade
 // ---------------------------------------------------------------------------
 export const forumPosts = mysqlTable("forumPosts", {
   id: serial("id").primaryKey(),
   authorId: bigint("authorId", { mode: "number", unsigned: true }).notNull(),
+  spaceId: bigint("spaceId", { mode: "number", unsigned: true }),
   categoria: mysqlEnum("categoria", [
     "duvidas",
     "experiencias",
@@ -170,3 +190,57 @@ export const companies = mysqlTable("companies", {
 
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = typeof companies.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Progresso do aluno no curso
+// ---------------------------------------------------------------------------
+export const lessonProgress = mysqlTable("lessonProgress", {
+  id: serial("id").primaryKey(),
+  userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
+  lessonId: bigint("lessonId", { mode: "number", unsigned: true }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LessonProgress = typeof lessonProgress.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Eventos ao vivo (encontros, aulas ao vivo, palestras)
+// ---------------------------------------------------------------------------
+export const events = mysqlTable("events", {
+  id: serial("id").primaryKey(),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  dataHora: timestamp("dataHora").notNull(),
+  duracaoMin: int("duracaoMin"),
+  link: varchar("link", { length: 512 }),
+  local: varchar("local", { length: 255 }),
+  createdBy: bigint("createdBy", { mode: "number", unsigned: true }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Event = typeof events.$inferSelect;
+export type InsertEvent = typeof events.$inferInsert;
+
+export const eventRsvps = mysqlTable("eventRsvps", {
+  id: serial("id").primaryKey(),
+  eventId: bigint("eventId", { mode: "number", unsigned: true }).notNull(),
+  userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
+  status: mysqlEnum("status", ["vou", "talvez"]).default("vou").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type EventRsvp = typeof eventRsvps.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Mensagens diretas entre membros
+// ---------------------------------------------------------------------------
+export const messages = mysqlTable("messages", {
+  id: serial("id").primaryKey(),
+  deUserId: bigint("deUserId", { mode: "number", unsigned: true }).notNull(),
+  paraUserId: bigint("paraUserId", { mode: "number", unsigned: true }).notNull(),
+  conteudo: text("conteudo").notNull(),
+  lidaEm: timestamp("lidaEm"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Message = typeof messages.$inferSelect;

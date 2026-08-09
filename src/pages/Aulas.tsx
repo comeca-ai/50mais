@@ -1,11 +1,37 @@
 import { Link } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, FileText, PlayCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import {
+  CheckCircle2,
+  Circle,
+  Clock,
+  FileText,
+  PlayCircle,
+} from "lucide-react";
 
 export default function Aulas() {
+  const { isAuthenticated } = useAuth();
+  const utils = trpc.useUtils();
   const { data: lessons, isLoading } = trpc.lessons.list.useQuery();
+  const { data: meuProgresso } = trpc.progress.my.useQuery(undefined, {
+    enabled: isAuthenticated,
+    retry: false,
+  });
+  const { data: resumo } = trpc.progress.summary.useQuery(undefined, {
+    enabled: isAuthenticated,
+    retry: false,
+  });
+
+  const feitas = new Set((meuProgresso ?? []).map((p) => p.lessonId));
+  const alternar = trpc.progress.toggle.useMutation({
+    onSuccess: () => {
+      utils.progress.my.invalidate();
+      utils.progress.summary.invalidate();
+    },
+  });
 
   const modulos = Array.from(new Set((lessons ?? []).map((l) => l.modulo)));
 
@@ -17,9 +43,27 @@ export default function Aulas() {
         </h1>
         <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
           Curso completo de inteligência artificial, passo a passo. Assista no
-          seu ritmo, pause, volte e reassista quantas vezes quiser.
+          seu ritmo e marque cada aula concluída para acompanhar seu progresso.
         </p>
       </header>
+
+      {isAuthenticated && resumo && (
+        <Card className="mt-8 border-2 border-primary">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-xl font-bold">Seu progresso no curso</p>
+              <p className="font-display text-3xl font-semibold text-primary">
+                {resumo.percentual}%
+              </p>
+            </div>
+            <Progress value={resumo.percentual} className="mt-3 h-4" />
+            <p className="mt-2 text-muted-foreground">
+              {resumo.concluidas} de {resumo.total} aulas concluídas
+              {resumo.percentual === 100 && " — parabéns, curso completo! 🎉"}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading && (
         <p className="mt-12 text-lg text-muted-foreground">Carregando aulas…</p>
@@ -40,65 +84,125 @@ export default function Aulas() {
         </Card>
       )}
 
-      {modulos.map((modulo, mi) => (
-        <section key={modulo} className="mt-14" aria-labelledby={`modulo-${mi}`}>
-          <div className="flex items-baseline gap-4">
-            <span className="font-display text-4xl font-semibold text-primary/30">
-              {String(mi + 1).padStart(2, "0")}
-            </span>
-            <h2 id={`modulo-${mi}`} className="font-display text-3xl font-semibold">
-              {modulo}
-            </h2>
-          </div>
-          <div className="mt-6 grid gap-5 md:grid-cols-2">
-            {(lessons ?? [])
-              .filter((l) => l.modulo === modulo)
-              .map((aula) => (
-                <Card key={aula.id} className="card-hover">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <h3 className="text-xl font-bold leading-snug">
-                        {aula.titulo}
-                      </h3>
-                      {aula.duracaoMin && (
-                        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-sm font-bold">
-                          <Clock className="h-4 w-4" aria-hidden />
-                          {aula.duracaoMin} min
-                        </span>
+      {modulos.map((modulo, mi) => {
+        const aulasModulo = (lessons ?? []).filter((l) => l.modulo === modulo);
+        const feitasModulo = aulasModulo.filter((a) => feitas.has(a.id)).length;
+        const pctModulo =
+          aulasModulo.length === 0
+            ? 0
+            : Math.round((feitasModulo / aulasModulo.length) * 100);
+
+        return (
+          <section key={modulo} className="mt-14" aria-labelledby={`modulo-${mi}`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-4">
+              <div className="flex items-baseline gap-4">
+                <span className="font-display text-4xl font-semibold text-primary/30">
+                  {String(mi + 1).padStart(2, "0")}
+                </span>
+                <h2 id={`modulo-${mi}`} className="font-display text-3xl font-semibold">
+                  {modulo}
+                </h2>
+              </div>
+              {isAuthenticated && aulasModulo.length > 0 && (
+                <div className="flex w-full max-w-xs items-center gap-3 sm:w-auto">
+                  <Progress value={pctModulo} className="h-3 w-32" />
+                  <span className="text-sm font-bold text-muted-foreground">
+                    {feitasModulo}/{aulasModulo.length}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="mt-6 grid gap-5 md:grid-cols-2">
+              {aulasModulo.map((aula) => {
+                const concluida = feitas.has(aula.id);
+                return (
+                  <Card
+                    key={aula.id}
+                    className={`card-hover ${concluida ? "border-2 border-[hsl(150,50%,45%)]" : ""}`}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <h3 className="text-xl font-bold leading-snug">
+                          {aula.titulo}
+                        </h3>
+                        {aula.duracaoMin && (
+                          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-sm font-bold">
+                            <Clock className="h-4 w-4" aria-hidden />
+                            {aula.duracaoMin} min
+                          </span>
+                        )}
+                      </div>
+                      {aula.descricao && (
+                        <p className="mt-3 leading-relaxed text-muted-foreground">
+                          {aula.descricao}
+                        </p>
                       )}
-                    </div>
-                    {aula.descricao && (
-                      <p className="mt-3 leading-relaxed text-muted-foreground">
-                        {aula.descricao}
-                      </p>
-                    )}
-                    <div className="mt-5 flex flex-wrap gap-3">
-                      <Button asChild size="lg" className="text-base font-bold">
-                        <Link to={`/aulas/${aula.id}`}>
-                          <PlayCircle className="mr-2 h-5 w-5" aria-hidden />
-                          {aula.videoUrl ? "Assistir aula" : "Ver aula"}
-                        </Link>
-                      </Button>
-                      {aula.materialUrl && (
-                        <Button
-                          asChild
-                          variant="outline"
-                          size="lg"
-                          className="text-base font-bold"
-                        >
+                      <div className="mt-5 flex flex-wrap items-center gap-3">
+                        <Button asChild size="lg" className="text-base font-bold">
                           <Link to={`/aulas/${aula.id}`}>
-                            <FileText className="mr-2 h-5 w-5" aria-hidden />
-                            Material de apoio
+                            <PlayCircle className="mr-2 h-5 w-5" aria-hidden />
+                            {aula.videoUrl ? "Assistir aula" : "Ver aula"}
                           </Link>
                         </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-          </div>
-        </section>
-      ))}
+                        {aula.materialUrl && (
+                          <Button
+                            asChild
+                            variant="outline"
+                            size="lg"
+                            className="text-base font-bold"
+                          >
+                            <Link to={`/aulas/${aula.id}`}>
+                              <FileText className="mr-2 h-5 w-5" aria-hidden />
+                              Material
+                            </Link>
+                          </Button>
+                        )}
+                        {isAuthenticated && (
+                          <button
+                            onClick={() =>
+                              alternar.mutate({
+                                lessonId: aula.id,
+                                done: !concluida,
+                              })
+                            }
+                            className={`flex items-center gap-2 rounded-full px-4 py-2 text-base font-bold transition-colors ${
+                              concluida
+                                ? "bg-[hsl(150,50%,45%)] text-white"
+                                : "bg-secondary hover:bg-border"
+                            }`}
+                            aria-pressed={concluida}
+                          >
+                            {concluida ? (
+                              <CheckCircle2 className="h-5 w-5" aria-hidden />
+                            ) : (
+                              <Circle className="h-5 w-5" aria-hidden />
+                            )}
+                            {concluida ? "Concluída" : "Marcar concluída"}
+                          </button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+
+      {!isAuthenticated && (
+        <Card className="mt-12 bg-secondary">
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-6">
+            <p className="text-lg font-bold">
+              Entre na sua conta para marcar aulas concluídas e acompanhar seu
+              progresso.
+            </p>
+            <Button asChild size="lg" className="h-12 text-base font-bold">
+              <Link to="/login">Entrar</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

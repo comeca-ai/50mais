@@ -1,11 +1,14 @@
 import { Link, useParams } from "react-router";
 import { trpc } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import VideoPlayer from "@/components/VideoPlayer";
 import {
   ArrowLeft,
   ArrowRight,
+  CheckCircle2,
+  Circle,
   Clock,
   ExternalLink,
   FileText,
@@ -14,7 +17,20 @@ import {
 export default function AssistirAula() {
   const { id } = useParams<{ id: string }>();
   const aulaId = Number(id);
+  const { isAuthenticated } = useAuth();
+  const utils = trpc.useUtils();
   const { data: lessons, isLoading } = trpc.lessons.list.useQuery();
+  const { data: meuProgresso } = trpc.progress.my.useQuery(undefined, {
+    enabled: isAuthenticated,
+    retry: false,
+  });
+  const alternar = trpc.progress.toggle.useMutation({
+    onSuccess: () => {
+      utils.progress.my.invalidate();
+      utils.progress.summary.invalidate();
+    },
+  });
+  const concluida = (meuProgresso ?? []).some((p) => p.lessonId === aulaId);
 
   if (isLoading) {
     return (
@@ -103,6 +119,27 @@ export default function AssistirAula() {
             <ExternalLink className="ml-1.5 h-4 w-4" aria-hidden />
           </a>
         </Button>
+      )}
+
+      {isAuthenticated && (
+        <button
+          onClick={() => alternar.mutate({ lessonId: aulaId, done: !concluida })}
+          className={`mt-8 flex h-14 w-full items-center justify-center gap-3 rounded-2xl text-lg font-bold transition-colors ${
+            concluida
+              ? "bg-[hsl(150,50%,45%)] text-white"
+              : "bg-primary text-primary-foreground hover:opacity-90"
+          }`}
+          aria-pressed={concluida}
+        >
+          {concluida ? (
+            <CheckCircle2 className="h-6 w-6" aria-hidden />
+          ) : (
+            <Circle className="h-6 w-6" aria-hidden />
+          )}
+          {concluida
+            ? "Aula concluída! (toque para desmarcar)"
+            : "Terminei esta aula — marcar como concluída"}
+        </button>
       )}
 
       <nav

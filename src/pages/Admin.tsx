@@ -484,6 +484,124 @@ function AbaEmpresas() {
 }
 
 // ---------------------------------------------------------------------------
+// Aba: Espaços da comunidade
+// ---------------------------------------------------------------------------
+function AbaEspacos() {
+  const utils = trpc.useUtils();
+  const { data: espacos } = trpc.spaces.list.useQuery();
+  const [nome, setNome] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [acesso, setAcesso] = useState<"publico" | "membros">("publico");
+
+  const criar = trpc.spaces.create.useMutation({
+    onSuccess: () => {
+      utils.spaces.list.invalidate();
+      setNome("");
+      setDescricao("");
+    },
+  });
+  const excluir = trpc.spaces.delete.useMutation({
+    onSuccess: () => utils.spaces.list.invalidate(),
+  });
+
+  return (
+    <div className="grid items-start gap-8 lg:grid-cols-2">
+      <Card>
+        <CardContent className="space-y-4 p-6">
+          <h3 className="text-xl font-bold">Novo espaço</h3>
+          <div>
+            <Label className="text-base font-bold">Nome do espaço</Label>
+            <Input
+              className="mt-1.5 h-11 text-base"
+              placeholder="Ex.: Turma de março"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label className="text-base font-bold">Descrição (opcional)</Label>
+            <Textarea
+              className="mt-1.5 min-h-20 text-base"
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label className="text-base font-bold">Quem pode ver</Label>
+            <Select value={acesso} onValueChange={(v) => setAcesso(v as typeof acesso)}>
+              <SelectTrigger className="mt-1.5 h-11 text-base">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="publico" className="text-base">
+                  Todo mundo (aberto)
+                </SelectItem>
+                <SelectItem value="membros" className="text-base">
+                  Só membros logados (restrito)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Espaços restritos preparam a futura área paga da comunidade.
+            </p>
+          </div>
+          <Button
+            size="lg"
+            className="h-12 w-full text-base font-bold"
+            disabled={criar.isPending || !nome}
+            onClick={() =>
+              criar.mutate({
+                nome,
+                descricao: descricao || undefined,
+                ordem: (espacos ?? []).length + 1,
+                acesso,
+              })
+            }
+          >
+            {criar.isPending ? "Criando…" : "Criar espaço"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-xl font-bold">
+            Espaços existentes ({(espacos ?? []).length})
+          </h3>
+          <ul className="mt-4 space-y-3">
+            {(espacos ?? []).map((e) => (
+              <li
+                key={e.id}
+                className="flex items-center justify-between gap-3 rounded-xl border p-4"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-bold">
+                    {e.nome}
+                    {e.acesso === "membros" && " 🔒"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {Number(e.postCount)} conversas
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="h-11 w-11 shrink-0"
+                  aria-label={`Excluir espaço ${e.nome}`}
+                  onClick={() => excluir.mutate({ id: e.id })}
+                >
+                  <Trash2 className="h-5 w-5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Página Admin
 // ---------------------------------------------------------------------------
 export default function Admin() {
@@ -521,9 +639,12 @@ export default function Admin() {
       </p>
 
       <Tabs defaultValue="aulas" className="mt-10">
-        <TabsList className="h-14 gap-2 p-1.5">
+        <TabsList className="h-14 flex-wrap gap-2 p-1.5">
           <TabsTrigger value="aulas" className="h-11 px-6 text-base font-bold">
             Aulas e vídeos
+          </TabsTrigger>
+          <TabsTrigger value="espacos" className="h-11 px-6 text-base font-bold">
+            Espaços
           </TabsTrigger>
           <TabsTrigger value="vagas" className="h-11 px-6 text-base font-bold">
             Vagas
@@ -534,6 +655,9 @@ export default function Admin() {
         </TabsList>
         <TabsContent value="aulas" className="mt-8">
           <AbaAulas />
+        </TabsContent>
+        <TabsContent value="espacos" className="mt-8">
+          <AbaEspacos />
         </TabsContent>
         <TabsContent value="vagas" className="mt-8">
           <AbaVagas />

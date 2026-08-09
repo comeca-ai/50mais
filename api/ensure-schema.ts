@@ -91,6 +91,53 @@ const DDL = [
     status enum('pendente','aprovada') NOT NULL DEFAULT 'pendente',
     createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS spaces (
+    id bigint unsigned auto_increment PRIMARY KEY,
+    nome varchar(255) NOT NULL,
+    descricao text,
+    ordem int NOT NULL,
+    acesso enum('publico','membros') NOT NULL DEFAULT 'publico',
+    createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS lessonProgress (
+    id bigint unsigned auto_increment PRIMARY KEY,
+    userId bigint unsigned NOT NULL,
+    lessonId bigint unsigned NOT NULL,
+    createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY user_lesson (userId, lessonId)
+  )`,
+  `CREATE TABLE IF NOT EXISTS events (
+    id bigint unsigned auto_increment PRIMARY KEY,
+    titulo varchar(255) NOT NULL,
+    descricao text,
+    dataHora timestamp NOT NULL,
+    duracaoMin int,
+    link varchar(512),
+    local varchar(255),
+    createdBy bigint unsigned,
+    createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS eventRsvps (
+    id bigint unsigned auto_increment PRIMARY KEY,
+    eventId bigint unsigned NOT NULL,
+    userId bigint unsigned NOT NULL,
+    status enum('vou','talvez') NOT NULL DEFAULT 'vou',
+    createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY user_event (userId, eventId)
+  )`,
+  `CREATE TABLE IF NOT EXISTS messages (
+    id bigint unsigned auto_increment PRIMARY KEY,
+    deUserId bigint unsigned NOT NULL,
+    paraUserId bigint unsigned NOT NULL,
+    conteudo text NOT NULL,
+    lidaEm timestamp NULL,
+    createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+];
+
+// Colunas adicionadas depois da primeira versão do banco — ignora erro se já existir
+const ALTERS = [
+  "ALTER TABLE forumPosts ADD COLUMN spaceId bigint unsigned NULL",
 ];
 
 const SEED_LESSONS: Array<{
@@ -176,6 +223,14 @@ export async function ensureSchema() {
       await conn.query(stmt);
     }
 
+    for (const stmt of ALTERS) {
+      try {
+        await conn.query(stmt);
+      } catch {
+        // coluna já existe — segue em frente
+      }
+    }
+
     const [rows] = await conn.query("SELECT COUNT(*) AS n FROM lessons");
     const count = Number((rows as Array<{ n: number }>)[0]?.n ?? 0);
     if (count === 0) {
@@ -186,6 +241,27 @@ export async function ensureSchema() {
         );
       }
       console.log(`Seed: ${SEED_LESSONS.length} aulas iniciais criadas.`);
+    }
+
+    // Espaços iniciais da comunidade
+    const [spaceRows] = await conn.query("SELECT COUNT(*) AS n FROM spaces");
+    const spaceCount = Number((spaceRows as Array<{ n: number }>)[0]?.n ?? 0);
+    if (spaceCount === 0) {
+      const espacos = [
+        ["Apresente-se", "Conte quem você é, de onde vem e o que busca. A comunidade te dá boas-vindas!", 1, "publico"],
+        ["Dúvidas das aulas", "Travou em alguma aula? Pergunte aqui que a turma e a equipe ajudam.", 2, "publico"],
+        ["Conquistas e histórias", "Conseguiu um emprego? Terminou um módulo? Comemore com a gente!", 3, "publico"],
+        ["Oportunidades e networking", "Vagas vistas por aí, indicações e conexões entre membros.", 4, "publico"],
+        ["Papo geral", "Conversa solta entre a turma, sobre tudo e sobre nada.", 5, "publico"],
+        ["Clube dos membros", "Espaço reservado para membros da comunidade (área restrita).", 6, "membros"],
+      ];
+      for (const [nome, descricao, ordem, acesso] of espacos) {
+        await conn.query(
+          "INSERT INTO spaces (nome, descricao, ordem, acesso) VALUES (?, ?, ?, ?)",
+          [nome, descricao, ordem, acesso],
+        );
+      }
+      console.log("Seed: espaços iniciais da comunidade criados.");
     }
 
     console.log("Schema do banco verificado com sucesso.");

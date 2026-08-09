@@ -5,6 +5,12 @@ import Aulas from "./pages/Aulas";
 import AssistirAula from "./pages/AssistirAula";
 import Comunidade from "./pages/Comunidade";
 import Post from "./pages/Post";
+import Eventos from "./pages/Eventos";
+import Membros from "./pages/Membros";
+import Membro from "./pages/Membro";
+import Ranking from "./pages/Ranking";
+import Mensagens from "./pages/Mensagens";
+import Conversa from "./pages/Conversa";
 import Vagas from "./pages/Vagas";
 import Empresas from "./pages/Empresas";
 import Perfil from "./pages/Perfil";
@@ -20,7 +26,13 @@ export default function App() {
         <Route path="/aulas" element={<Aulas />} />
         <Route path="/aulas/:id" element={<AssistirAula />} />
         <Route path="/comunidade" element={<Comunidade />} />
-        <Route path="/comunidade/:id" element={<Post />} />
+        <Route path="/comunidade/post/:id" element={<Post />} />
+        <Route path="/comunidade/eventos" element={<Eventos />} />
+        <Route path="/comunidade/membros" element={<Membros />} />
+        <Route path="/comunidade/membros/:id" element={<Membro />} />
+        <Route path="/comunidade/ranking" element={<Ranking />} />
+        <Route path="/mensagens" element={<Mensagens />} />
+        <Route path="/mensagens/:id" element={<Conversa />} />
         <Route path="/vagas" element={<Vagas />} />
         <Route path="/empresas" element={<Empresas />} />
         <Route path="/perfil" element={<Perfil />} />

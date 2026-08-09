@@ -7,6 +7,14 @@ import {
   companiesRouter,
   profileRouter,
 } from "./community-router";
+import {
+  spacesRouter,
+  progressRouter,
+  eventsRouter,
+  membersRouter,
+  gamificationRouter,
+  messagesRouter,
+} from "./community2-router";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
@@ -16,6 +24,12 @@ export const appRouter = createRouter({
   jobs: jobsRouter,
   companies: companiesRouter,
   profile: profileRouter,
+  spaces: spacesRouter,
+  progress: progressRouter,
+  events: eventsRouter,
+  members: membersRouter,
+  gamification: gamificationRouter,
+  messages: messagesRouter,
 });
 
 export type AppRouter = typeof appRouter;

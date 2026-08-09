@@ -8,8 +8,30 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, Sprout, User, LogOut, ShieldCheck } from "lucide-react";
+import { Menu, MessageSquareText, Sprout, User, LogOut, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import { trpc } from "@/providers/trpc";
+
+function BotaoMensagens() {
+  const { data: naoLidas } = trpc.messages.unread.useQuery(undefined, {
+    refetchInterval: 20000,
+    retry: false,
+  });
+  return (
+    <Link
+      to="/mensagens"
+      className="relative flex h-12 w-12 items-center justify-center rounded-lg border hover:bg-secondary"
+      aria-label={`Mensagens${naoLidas ? `, ${naoLidas} não lidas` : ""}`}
+    >
+      <MessageSquareText className="h-6 w-6" />
+      {(naoLidas ?? 0) > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-[hsl(33,92%,46%)] px-1.5 text-xs font-bold text-white">
+          {naoLidas}
+        </span>
+      )}
+    </Link>
+  );
+}
 
 const NAV = [
   { to: "/", label: "Início" },
@@ -60,6 +82,7 @@ export default function Layout() {
           </nav>
 
           <div className="hidden items-center gap-3 lg:flex">
+            {isAuthenticated && <BotaoMensagens />}
             {isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -127,6 +150,9 @@ export default function Layout() {
               ))}
               {isAuthenticated ? (
                 <>
+                  <NavLink to="/mensagens" className={navClass} onClick={() => setOpen(false)}>
+                    Mensagens
+                  </NavLink>
                   <NavLink to="/perfil" className={navClass} onClick={() => setOpen(false)}>
                     Meu perfil
                   </NavLink>

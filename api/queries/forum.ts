@@ -1,10 +1,10 @@
 import { getDb } from "./connection";
-import { forumPosts, forumComments, users } from "@db/schema";
+import { forumPosts, forumComments, spaces, users } from "@db/schema";
 import { desc, eq, sql } from "drizzle-orm";
 
-export async function listPosts() {
+export async function listPosts(spaceId?: number) {
   const db = getDb();
-  const posts = await db
+  const base = db
     .select({
       id: forumPosts.id,
       categoria: forumPosts.categoria,
@@ -14,12 +14,19 @@ export async function listPosts() {
       authorId: forumPosts.authorId,
       authorName: users.name,
       authorAvatar: users.avatar,
+      spaceId: forumPosts.spaceId,
+      spaceNome: spaces.nome,
       commentCount: sql<number>`(select count(*) from ${forumComments} where ${forumComments.postId} = ${forumPosts.id})`,
     })
     .from(forumPosts)
     .leftJoin(users, eq(forumPosts.authorId, users.id))
+    .leftJoin(spaces, eq(forumPosts.spaceId, spaces.id))
     .orderBy(desc(forumPosts.createdAt));
-  return posts;
+
+  if (spaceId) {
+    return base.where(eq(forumPosts.spaceId, spaceId));
+  }
+  return base;
 }
 
 export async function getPost(id: number) {

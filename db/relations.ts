@@ -2,10 +2,14 @@ import { relations } from "drizzle-orm";
 import {
   users,
   profiles,
+  spaces,
   forumPosts,
   forumComments,
   jobs,
   jobInterests,
+  events,
+  eventRsvps,
+  messages,
 } from "./schema";
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -13,6 +17,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   posts: many(forumPosts),
   comments: many(forumComments),
   jobInterests: many(jobInterests),
+  rsvps: many(eventRsvps),
 }));
 
 export const profilesRelations = relations(profiles, ({ one }) => ({
@@ -21,7 +26,32 @@ export const profilesRelations = relations(profiles, ({ one }) => ({
 
 export const forumPostsRelations = relations(forumPosts, ({ one, many }) => ({
   author: one(users, { fields: [forumPosts.authorId], references: [users.id] }),
+  space: one(spaces, {
+    fields: [forumPosts.spaceId],
+    references: [spaces.id],
+  }),
   comments: many(forumComments),
+}));
+
+export const spacesRelations = relations(spaces, ({ many }) => ({
+  posts: many(forumPosts),
+}));
+
+export const eventsRelations = relations(events, ({ many }) => ({
+  rsvps: many(eventRsvps),
+}));
+
+export const eventRsvpsRelations = relations(eventRsvps, ({ one }) => ({
+  event: one(events, {
+    fields: [eventRsvps.eventId],
+    references: [events.id],
+  }),
+  user: one(users, { fields: [eventRsvps.userId], references: [users.id] }),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  de: one(users, { fields: [messages.deUserId], references: [users.id] }),
+  para: one(users, { fields: [messages.paraUserId], references: [users.id] }),
 }));
 
 export const forumCommentsRelations = relations(forumComments, ({ one }) => ({
