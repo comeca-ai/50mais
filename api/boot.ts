@@ -27,6 +27,8 @@ export default app;
 if (env.isProduction) {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
+  const { ensureSchema } = await import("./ensure-schema");
+  await ensureSchema();
   serveStaticFiles(app);
 
   const port = parseInt(process.env.PORT || "3000");

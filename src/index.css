@@ -1,75 +1,73 @@
+@import url("https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 42 33% 97%;
+    --foreground: 168 25% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 168 25% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
+    --popover-foreground: 168 25% 13%;
+    --primary: 168 62% 24%;
+    --primary-foreground: 42 40% 97%;
+    --secondary: 40 45% 91%;
+    --secondary-foreground: 168 30% 18%;
+    --muted: 40 30% 93%;
+    --muted-foreground: 168 10% 33%;
+    --accent: 33 92% 46%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.625rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 168 12% 84%;
+    --input: 168 12% 80%;
+    --ring: 168 62% 24%;
+    --radius: 0.75rem;
+    --sidebar-background: 42 33% 97%;
+    --sidebar-foreground: 168 25% 13%;
+    --sidebar-primary: 168 62% 24%;
+    --sidebar-primary-foreground: 42 40% 97%;
+    --sidebar-accent: 40 45% 91%;
+    --sidebar-accent-foreground: 168 30% 18%;
+    --sidebar-border: 168 12% 84%;
+    --sidebar-ring: 168 62% 24%;
   }
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+  html {
+    font-size: 112.5%; /* 18px base — leitura confortável */
+    scroll-behavior: smooth;
   }
-}
 
-@layer base {
+  body {
+    font-family: "Atkinson Hyperlegible", system-ui, -apple-system, sans-serif;
+    @apply bg-background text-foreground antialiased;
+  }
+
+  .font-display {
+    font-family: "Fraunces", Georgia, serif;
+  }
+
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
+  }
+
+  .hero-band {
+    background:
+      radial-gradient(60rem 30rem at 85% -10%, hsl(33 92% 46% / 0.18), transparent 60%),
+      radial-gradient(50rem 28rem at -10% 110%, hsl(168 62% 24% / 0.22), transparent 60%),
+      linear-gradient(160deg, hsl(168 55% 16%), hsl(168 62% 24%) 55%, hsl(166 45% 30%));
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
   }
 }

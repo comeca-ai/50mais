@@ -19,20 +19,26 @@ function getOAuthUrl() {
 
 export default function Login() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Card className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <Card className="w-full max-w-md border-2">
         <CardHeader className="text-center">
-          <CardTitle>Welcome</CardTitle>
+          <CardTitle className="font-display text-3xl">
+            Bem-vindo(a) à Recomeça
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5">
+          <p className="text-center text-lg text-muted-foreground">
+            Entre para acessar as aulas, participar da comunidade e se
+            candidatar às vagas.
+          </p>
           <Button
-            className="w-full"
+            className="h-14 w-full text-lg font-bold"
             size="lg"
             onClick={() => {
               window.location.href = getOAuthUrl();
             }}
           >
-            Sign in with Kimi
+            Entrar com a conta Kimi
           </Button>
         </CardContent>
       </Card>
